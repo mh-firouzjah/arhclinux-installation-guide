@@ -41,7 +41,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
   - Wi-Fi — authenticate to the wireless network using iwctl
 
    ```bash
-   lwctl --passphrase PASSWORD station wlan0 connect WIFINAME
+   lwctl --passphrase PASSWORD station wlan0 connect WIFINAME [hidden yes]
    ```
 
 - The connection may be verified with `ping`
@@ -65,13 +65,13 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
 - Refresh mirrorlist
 
   ```bash
-  reflector --ipv6 -p https -c NL,DE,FR,GB -a 24 --sort rate -f 30 --save /etc/pacman.d/mirrorlist
+  reflector --ipv6 -p https -c NL,DE -a 12 --sort rate -f 30 --save /etc/pacman.d/mirrorlist
   ```
 
 - Verify system uefi/bios
 
   ```bash
-  ls /sys/firmware/efi/efivars # any output indicates uefi boot
+  cat /sys/firmware/efi/fw_platform_size  # 64 -> UEFI / 32 -> BIOS
   ```
 
 ## Partition the disks
@@ -148,7 +148,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
     ```bash
     mkfs.ext4 -c -e remount-ro -L ROOT -O dir_index,extent,filetype,flex_bg,has_journal,sparse_super,uninit_bg -E lazy_itable_init,discard /dev/nvme0n1p2
 
-    mount -t ext4 -o defaults,noatime,discard,journal_checksum,commit=120,min_batch_time=200,auto_da_alloc,i_version /dev/nvme0n1p2 /mnt
+    mount -t ext4 -o defaults,noatime,discard,journal_checksum,auto_da_alloc,i_version /dev/nvme0n1p2 /mnt
     ```
 
 - BTRFS Partitioning
@@ -204,7 +204,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
 - Basic System
 
   ```bash
-  pacstrap -K /mnt base base-devel linux-lts linux-lts-headers linux-firmware intel-ucode ntfs-3g e2fsprogs btrfs-progs neovim networkmanager efibootmgr efitools sbctl # grub
+  pacstrap -K /mnt base base-devel linux-lts linux-lts-headers linux-firmware intel-ucode ntfs-3g e2fsprogs btrfs-progs xfsprogs neovim networkmanager efibootmgr efitools sbctl # grub
 
   genfstab -U /mnt >> /mnt/etc/fstab
 
@@ -268,7 +268,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
   Install required packages:
 
   ```bash
-  pacman -S grub efibootmgr
+  pacman -S grub
   ```
 
   Now, we'll use the grub-install command to
@@ -289,10 +289,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
   - and you have to uncomment `#GRUB_DISABLE_OS_PROBER=false` from `/etc/default/grub`:
 
       ```bash
-      vim /etc/default/grub
-      ---------------------
-      remove '#' from the following line
-      #GRUB_DISABLE_OS_PROBER=false
+      sed -i '/GRUB_DISABLE_OS_PROBER/s/^#\s*//g' /etc/default/grub
       ```
 
   Now execute the following command to generate the configuration file:
@@ -307,7 +304,7 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
   <summary>systemd-boot</summary>
 
   ```bash
-  bootctl install --efi-boot-option-description="Arch Linux LTS"
+  bootctl install
   ```
 
 - To set a loader edit `/boot/loader/loader.conf` and define a default entry
@@ -356,25 +353,6 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
 
   ```bash
   bootctl list
-  ```
-
-- Secure Boot
-
-  Secure Boot is in Setup Mode when the Platform Key is removed. To put firmware in Setup Mode, enter firmware setup utility and find an option to delete or clear certificates.
-
-  - ***Note**: sbctl does not work with all hardware. How well it will work depends on the manufacturer.*
-
-  ```bash
-  sbctl create-keys
-  sbctl enroll-keys -m
-  sbctl status
-  sbctl verify
-  sbctl sign -s /boot/vmlinuz-linux
-  sbctl sign -s /boot/EFI/BOOT/BOOTX64.EFI
-  ...
-  sbctl status
-  systemctl enable systemd-boot-update.service
-  sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed /usr/lib/systemd/boot/efi/systemd-bootx64.efi
   ```
 
 - Finish systemd required configs
@@ -481,6 +459,27 @@ In this content I'll explain how to install Arch Linux (64-bit) using systemd-bo
   ```bash
   reboot
   ```
+
+  - Secure Boot
+
+  Secure Boot is in Setup Mode when the Platform Key is removed. To put firmware in Setup Mode, enter firmware setup utility and find an option to delete or clear certificates.
+
+  - ***Note**: sbctl does not work with all hardware. How well it will work depends on the manufacturer.*
+  - ***Note**: The following code is used for systemd-boot, for grub you may need to adjust it as required.*
+
+  ```bash
+  sbctl create-keys
+  sbctl enroll-keys -m
+  sbctl status
+  sbctl verify
+  sbctl sign -s /boot/vmlinuz-linux
+  sbctl sign -s /boot/EFI/BOOT/BOOTX64.EFI
+  ...
+  sbctl status
+  systemctl enable systemd-boot-update.service
+  sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+  ```
+
 
 ## Additional Packages
 
